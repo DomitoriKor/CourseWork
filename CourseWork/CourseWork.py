@@ -1,6 +1,11 @@
 import os
 from openpyxl import load_workbook
 
+from gtts.tokenizer import pre_processors, Tokenizer, tokenizer_cases
+from gtts.utils import _minimize, _len, _clean_tokens
+from gtts.lang import tts_langs
+
+
 table = [
 #   ('festival', 'espeak', 'sapi', 'cepstral', 'mac', 'x-sampa', 'acapela-uk', 'cmu', 'bbcmicro', 'unicode-ipa','pinyin-approx'),
    # The first entry MUST be the syllable separator:
@@ -123,7 +128,7 @@ wb = load_workbook('D:\VCCV.xlsx')
 trans_table = wb.active
 
 sampa_cz_table = list()
-#sampa_cz_table.append(('czloid', 'x-sampa'))
+sampa_alphabet = {'phos' : [], 'aux' : ['', '']}
 
 #Get vowels list
 vowel_set = set()
@@ -136,10 +141,11 @@ for vowel_line in trans_table['A3':'B40']:
         sampa = str(sampa)
     vowel_set.add(cz)
     sampa_cz_table.append((sampa, cz))
+    sampa_alphabet['phos'].append(sampa)
 
 #Get CV consonants list
 consonant_set = set()
-for cv_cons_line in trans_table['A84':'B115']:
+for cv_cons_line in trans_table['A85':'B122']:
     cz = cv_cons_line[0].value
     sampa = cv_cons_line[1].value
     if isinstance(cz, (int)):
@@ -148,10 +154,11 @@ for cv_cons_line in trans_table['A84':'B115']:
         sampa = str(sampa)
     consonant_set.add(cz)
     sampa_cz_table.append((sampa, cz))
+    sampa_alphabet['phos'].append(sampa)
 
 #Get CCV consonants list
 #ccv_cons_set = set()
-for ccv_cons_line in trans_table['A43':'B81']:
+for ccv_cons_line in trans_table['A43':'B82']:
     cz = ccv_cons_line[0].value
     sampa = ccv_cons_line[1].value
     if isinstance(cz, (int)):
@@ -160,11 +167,11 @@ for ccv_cons_line in trans_table['A43':'B81']:
         sampa = str(sampa)
     #ccv_cons_set.add(cz)
     #consonant_set.add(cz)
-    sampa_cz_table.append((sampa, cz))
+    #sampa_cz_table.append((sampa, cz))
 
 #Get VCC consonants list
 #vcc_cons_set = set()
-for vcc_cons_line in trans_table['A118':'B179']:
+for vcc_cons_line in trans_table['A125':'B186']:
     cz = vcc_cons_line[0].value
     sampa = vcc_cons_line[1].value
     if isinstance(cz, (int)):
@@ -173,9 +180,9 @@ for vcc_cons_line in trans_table['A118':'B179']:
         sampa = str(sampa)
     #vcc_cons_set.add(cz)
     #consonant_set.add(cz)
-    sampa_cz_table.append((sampa, cz))
+    #sampa_cz_table.append((sampa, cz))
 
-print(sampa_cz_table, end ='\n\n')
+#print(sampa_cz_table, end ='\n\n')
 sampa_cz_dict = dict(sampa_cz_table)
 
 #Build CMU - CZloid table
@@ -216,9 +223,9 @@ wb = load_workbook('D:\IPA-X-SAMPA.xlsx')
 trans_table = wb.active
 
 ipa_sampa_table = list()
-ipa_list = list()
-sampa_list = list()
-for test_line in trans_table['A2':'B164']:
+ipa_alpfabet = {'phos' : [], 'aux' : ['', '']}
+
+for test_line in trans_table['A2':'B122']:
     ipa = test_line[0].value
     sampa = test_line[1].value
     if (ipa != None and sampa != None):
@@ -226,43 +233,117 @@ for test_line in trans_table['A2':'B164']:
             ipa = str(ipa)
         if isinstance(sampa, (int)):
             sampa = str(sampa)
+        ipa_alpfabet['phos'].append(ipa)
         ipa_sampa_table.append((ipa, sampa))
-        ipa_list.append(ipa)
-        sampa_list.append(sampa)
 
-print(ipa_sampa_table, end ='\n\n')
+for test_line in trans_table['A124':'B137']:
+    ipa = test_line[0].value
+    sampa = test_line[1].value
+    if (ipa != None and sampa != None):
+        if isinstance(ipa, (int)):
+            ipa = str(ipa)
+        if isinstance(sampa, (int)):
+            sampa = str(sampa)
+        ipa_alpfabet['aux'].append(ipa)
+
+print(ipa_alpfabet['phos'], end ='\n\n')
 ipa_sapma_dict = dict(ipa_sampa_table)
 
 #Build ARPABET - IPA dictionary
 wb = load_workbook('D:\ARPABET-IPA.xlsx')
 trans_table = wb.active
 
+arpa_alpfabet = {'phos' : [], 'aux' : [' ']}
 arpa_ipa_table = list()
-ipa_list = list()
-arpa_list = list()
-for test_line in trans_table['A2':'B63']:
-    ipa = test_line[0].value
-    arpa = test_line[1].value
+
+for test_line in trans_table['A2':'B51']:
+    arpa = test_line[0].value
+    ipa = test_line[1].value
     if (ipa != None and arpa != None):
         if isinstance(ipa, (int)):
             ipa = str(ipa)
         if isinstance(arpa, (int)):
             arpa = str(arpa)
+        arpa_alpfabet['phos'].append(arpa)
         arpa_ipa_table.append((arpa, ipa))
-        arpa_list.append(arpa)
-        ipa_list.append(ipa)
 
-print(arpa_ipa_table, end ='\n\n')
+for test_line in trans_table['A53':'B61']:
+    arpa = test_line[0].value
+    ipa = test_line[1].value
+    if (ipa != None and arpa != None):
+        if isinstance(ipa, (int)):
+            ipa = str(ipa)
+        if isinstance(arpa, (int)):
+            arpa = str(arpa)
+        arpa_alpfabet['aux'].append(arpa) 
+
+print(arpa_alpfabet['phos'], end ='\n\n')
 arpa_ipa_dict = dict(arpa_ipa_table)
 
-for i in set(ipa_list):
-    k = ipa_list.count(i)
-    if k > 1:
-        print(i, k, ipa_list.index(i))
-    
-#with open(os.path.dirname(__file__) + 'table1.txt', 'w') as f:
+a = 'AE 0 B HH AO 1 R AH 0 N T'
+#print(a)
+phoneset = list()
+for arpa in a.split():
+    if arpa not in ('012'):
+        ipa = arpa_ipa_dict[arpa]
+        sampa = ipa_sapma_dict[ipa]
+        try:
+            cz = sampa_cz_dict[sampa]
+        except KeyError:
+            try:
+                cz = sampa_cz_dict[ipa]
+            except KeyError:
+                print('!!!' + sampa)
+                continue
+        phoneset.append(cz)
+#for i in a.split():
+#    stress_level = 0
+#    isVovel = False
+#    if i.rfind('0') != -1:
+#        stress_level = 0
+#        isVowel = True
+#    elif i.rfind('1') != -1:
+#        stress_level = 1
+#        isVowel = True
+#    elif i.rfind('2') != -1:
+#        stress_level = 2
+#        isVowel = True
+#    phoneset.append({'symbol' : i, 'stress_level' : stress_level, 'isVowel' : isVowel})
+#print(phoneset)
 
-#print('[')
-#for new_line in new_table:
-#    print('\t', new_line, end = ',\n')
-#print(']')
+#print(vowel_set)
+#print(consonant_set)
+
+print('ARPABET -> IPA')
+for arpa in arpa_alpfabet['phos']:
+    try:
+        ipa = arpa_ipa_dict[arpa]
+        try:
+            sampa = ipa_sapma_dict[ipa]
+        except KeyError:
+            print('ipa_sampa!!! ', ipa , ' !!!')
+    except KeyError:
+        print('arpa_ipa!!! ', arpa , ' !!!')
+
+print("IPA -> X-SAMPA")
+for i in ipa_alpfabet['phos']:
+    try:
+        print(i, ' -> ', ipa_sapma_dict[i])
+    except KeyError:
+        print('!!! ', i , ' !!!')
+
+#print("X-SAMPA -> CZloid")
+#for i in sampa_alphabet['phos']:
+#    try:
+#        print(i, ' -> ', sampa_cz_dict[i])
+#    except KeyError:
+#        print('!!! ', i , ' !!!')
+
+#print('ARPABET -> CZloid')
+#for arpa in arpa_alpfabet['phos']:
+#    try:
+#        ipa = arpa_ipa_dict[arpa]
+#        sampa = ipa_sapma_dict[ipa]
+#        print(arpa, ' -> ', ipa, ' -> ', sampa)
+#    except KeyError:
+#        print('!!! ', arpa , ' !!!')
