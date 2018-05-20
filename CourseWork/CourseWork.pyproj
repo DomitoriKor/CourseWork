@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>ec70efbd-f6e6-4de2-95f8-c0a4157cda17</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>CourseWork.py</StartupFile>
+    <StartupFile>test.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,7 +22,13 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="CourseWork.py" />
+    <Compile Include="myg2p.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="test.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="test2.py">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

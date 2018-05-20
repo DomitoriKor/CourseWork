@@ -1,11 +1,6 @@
 import os
 from openpyxl import load_workbook
 
-from gtts.tokenizer import pre_processors, Tokenizer, tokenizer_cases
-from gtts.utils import _minimize, _len, _clean_tokens
-from gtts.lang import tts_langs
-
-
 table = [
 #   ('festival', 'espeak', 'sapi', 'cepstral', 'mac', 'x-sampa', 'acapela-uk', 'cmu', 'bbcmicro', 'unicode-ipa','pinyin-approx'),
    # The first entry MUST be the syllable separator:
@@ -282,20 +277,21 @@ arpa_ipa_dict = dict(arpa_ipa_table)
 
 a = 'AE 0 B HH AO 1 R AH 0 N T'
 #print(a)
-phoneset = list()
-for arpa in a.split():
-    if arpa not in ('012'):
-        ipa = arpa_ipa_dict[arpa]
-        sampa = ipa_sapma_dict[ipa]
-        try:
-            cz = sampa_cz_dict[sampa]
-        except KeyError:
-            try:
-                cz = sampa_cz_dict[ipa]
-            except KeyError:
-                print('!!!' + sampa)
-                continue
-        phoneset.append(cz)
+#phoneset = list()
+#for arpa in a.split():
+#    if arpa not in ('012'):
+#        ipa = arpa_ipa_dict[arpa]
+#        sampa = ipa_sapma_dict[ipa]
+#        try:
+#            cz = sampa_cz_dict[sampa]
+#        except KeyError:
+#            try:
+#                cz = sampa_cz_dict[ipa]
+#            except KeyError:
+#                print('!!!' + sampa)
+#                continue
+#        phoneset.append(cz)
+
 #for i in a.split():
 #    stress_level = 0
 #    isVovel = False
@@ -325,12 +321,12 @@ for arpa in arpa_alpfabet['phos']:
     except KeyError:
         print('arpa_ipa!!! ', arpa , ' !!!')
 
-print("IPA -> X-SAMPA")
-for i in ipa_alpfabet['phos']:
-    try:
-        print(i, ' -> ', ipa_sapma_dict[i])
-    except KeyError:
-        print('!!! ', i , ' !!!')
+#print("IPA -> X-SAMPA")
+#for i in ipa_alpfabet['phos']:
+#    try:
+#        print(i, ' -> ', ipa_sapma_dict[i])
+#    except KeyError:
+#        print('!!! ', i , ' !!!')
 
 #print("X-SAMPA -> CZloid")
 #for i in sampa_alphabet['phos']:
@@ -347,3 +343,12 @@ for i in ipa_alpfabet['phos']:
 #        print(arpa, ' -> ', ipa, ' -> ', sampa)
 #    except KeyError:
 #        print('!!! ', arpa , ' !!!')
+
+#os.system('echo off')
+#os.system('g2p-seq2seq --decode D:\Projects\g2p-models\test-list.txt --model_dir D:\Projects\g2p-models\g2p-seq2seq-model-6.2-cmudict-nostress')
+#os.system('echo on')
+
+#model_flags = g2p_seq2seq.app.FLAGS
+#model_flags.model_dir = 'D:\Projects\g2p-models\g2p-seq2seq-model-6.2-cmudict-nostress'
+#model_flags.decode = 'D:\Projects\g2p-models\test-list.txt'
+#model_flags.output = 'D:\Projects\g2p-models\test-output.txt'
