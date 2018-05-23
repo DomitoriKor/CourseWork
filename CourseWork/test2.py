@@ -10,7 +10,9 @@ try:
 except EOFError:
     pass
 
-model = myg2p.startpoint(model_dir = 'D:\Projects\g2p-models\g2p-seq2seq-model-6.2-cmudict-nostress', interactive=True)
+print('test2 loading complete')
+
+model = myg2p.startpoint(model_dir = 'D:\Projects\g2p-models\g2p-seq2seq-model-6.2-cmudict-nostress')
 model.interactive()
 
 
