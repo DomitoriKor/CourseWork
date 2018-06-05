@@ -9,12 +9,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from gtts import gTTS
+#from gtts import gTTS
 
 import os
 import shutil
 import tensorflow as tf
-
+import DSPModule
 #import g2p_seq2seq.g2p_trainer_utils as g2p_trainer_utils
 #from g2p_seq2seq.g2p import G2PModel
 #from g2p_seq2seq.params import Params
@@ -81,6 +81,10 @@ import sqlite3
 from collections import defaultdict
 from nltk.tokenize import sent_tokenize, word_tokenize, wordpunct_tokenize
 from num2words import num2words
+
+temp_dir = join(os.path.dirname(__file__), 'tmp')
+if not os.path.exists(temp_dir):
+    os.mkdir(temp_dir)
 
 
 ######################
@@ -208,7 +212,7 @@ class G2PModel(object):
         self.params.model_dir, train_path=train_path, dev_path=dev_path,
         test_path=test_path, cleanup=cleanup)
 
-    self.frozen_graph_filename = os.path.join(self.params.model_dir,
+    self.frozen_graph_filename = join(self.params.model_dir,
                                               "frozen_model.pb")
     self.frozen_loaded = False
     self.inputs, self.features, self.input_fn = None, None, None
@@ -398,7 +402,7 @@ class G2PModel(object):
     execute_schedule(self.exp, self.params)
 
 ##### INTERACTIVE MODE #####
-  def interactive(self):
+  def interactive(self, input_file = "", output_path = "", playback = True, by_sentence = False, logging = True):
         """Interactive decoding."""
         self.inputs = []
         word = "warmup"
@@ -436,65 +440,86 @@ class G2PModel(object):
         else:
             self.decode_word(word)
             self.frozen_loaded = False
+            os.system("cls")
+            sentence_number = 1
             while not self.mon_sess.should_stop():
                 text = get_text()
+                sentence_words = ""
+                sentence_syllables = []
                 for sentence in text:
                     sentence_transcription = ""
-                    sentence_phonemes = []
+                    if by_sentence:
+                        sentence_words = ""
+                        sentence_syllables = []
+
                     if sentence == [None]:
                         break
+                    end_punct = False
                     for word in word_tokenize(sentence):
                         pronunciation = []
                         normalized_word = ""
                         add_pause = False
-                        for chunk in wordpunct_tokenize(word):
+                        saved_chunk = ""
+                        for chunk in chartype_tokenize(word):
                             is_converted = False
                             if chunk.isdigit():
                                 chunk = num2words(int(chunk)).replace('-', ' ')
                                 is_converted = True
-                            #if i == len(chunks)-1:
-                            #    add_pause = True
-                            #    if chunk in ['.','!','?', '...', '?!', '!?']:
-                            #        pause_len = '-3' #Long pause for ending punctuation
-                            #        chunk = ' '
-                            #    elif chunk in [',', ';', ':', '-']:
-                            #        pause_len = '-2' #Short pause for middle punctuation
-                            #        chunk = ' '
-                            #    else:
-                            #        add_pause = False
-                            #elif chunk in punct_marks:
-                            #    chunk = ' '
                             if not (chunk.isalpha() or is_converted):
                                 if word in ['.','!','?', '...', '?!', '!?']:
                                     add_pause = True
-                                    pause_len = '-3' #Long pause for ending punctuation
+                                    pause_len = -3 # Long pause for ending punctuation
                                 elif word in [',', ';', ':', '-', '--']:
                                     add_pause = True
-                                    pause_len = '-2' #Short pause for middle punctuation
+                                    pause_len = -2 # Short pause for middle punctuation
+                                saved_chunk = chunk
                                 chunk = ''
 
                             normalized_word += chunk + ' '
-
-                        if add_pause and len(sentence_phonemes) != 0:
-                            pronunciation = [{'transcription' : [''], 'phones_map' : [('R', pause_len)]}]
+                        if add_pause:
+                            sentence_words = sentence_words.rstrip() + saved_chunk + ' '
+                            if len(sentence_syllables) != 0:
+                                pronunciation = [{'transcription' : [''], 'phones_map' : [('rest', pause_len)]}]
                             pass
                         if not normalized_word.isspace() and len(normalized_word) != 0:
                             pronunciation = self.get_word_pron(normalized_word)
+                            sentence_words += normalized_word
                         for word_pron in pronunciation:
                             if word_pron['transcription'][0] != '':
                                 sentence_transcription += word_pron['transcription'][0] + " "
-                            sentence_phonemes.append([])
-                            for phoneme in word_pron['phones_map']:
-                                sentence_phonemes[-1].append(phoneme)
+                            sentence_syllables.append([])
+                            for syllable in word_pron['phones_map']:
+                                if syllable[0] != '':
+                                    sentence_syllables[-1].append(syllable)
+                                end_punct = syllable[0] == 'rest'
                         pass
-
-                    print(sentence, sentence_transcription, sentence_phonemes, sep = '\n', end = '\n\n')
+                    
+                    if len(sentence_syllables) != 0 and not end_punct:
+                        sentence_syllables.append([('rest', -3)])
+                    #print(sentence, sentence_words, sentence_transcription, sentence_syllables, sep = '\n', end = '\n\n')
+                    if logging:
+                        print("--Sentence {}:".format(sentence_number), sentence)
+                        print("----Normalized form: " + sentence_words)
+                        print("----Trancsription: " + sentence_transcription)
+                        print("----Syllable map: ")
+                        print(sentence_syllables)
+                        print()
+                    if by_sentence:
+#                        render_message = DSPModule.produce_speech(sentence_words, output_path = output_path, playback = playback, by_sentence=by_sentence, sentence_number = str(sentence_number))
+                        render_message = DSPModule.produce_speech(sentence_syllables, output_path = output_path, playback = playback, by_sentence=by_sentence, sentence_number = str(sentence_number))
+                        if logging:
+                            print(render_message)
+                    sentence_number += 1
+                if not by_sentence:
+#                    render_message = DSPModule.produce_speech(sentence_words, output_path = output_path, playback = playback, by_sentence=by_sentence, sentence_number = str(sentence_number))
+                    render_message = DSPModule.produce_speech(sentence_syllables, output_path = output_path, playback = playback, by_sentence = by_sentence, sentence_number = str(sentence_number))
+                    if logging:
+                        print(render_message)
 
                 if sentence == [None]:
                     break
-                #result = self.decode_word(word)
-                #print("Output: {}".format(pronunciations))
-        os.system("pause")
+
+#        os.system("pause")
 
   ##### CMU TO XSAMPA #####    
   def get_cmu(self, tokens_in):
@@ -813,12 +838,12 @@ def get_top(ipa_list):
 
 def cmu_to_ipa(cmu_list, mark=True, stress_marking='both'):
     """converts the CMU word lists into ipa transcriptions"""
-    symbols = {"ax": "ʌ", "ey": "e", "aa": "ɑ", "ae": "æ", "ah": "ə", "ao": "ɔ",
-                   "aw": "aʊ", "ay": "aɪ", "ch": "tʃ", "dh": "ð", "eh": "ɛ", "er": "ər",
-                   "hh": "h", "ih": "ɪ", "jh": "dʒ", "ng": "ŋ",  "ow": "oʊ", "oy": "ɔɪ",
-                   "sh": "ʃ", "th": "θ", "uh": "ʊ", "uw": "u", "zh": "ʒ", "iy": "i", "y": "j",
-                   "dx": "ɾ", "ix": "ɨ", "ux": "ʉ", "el": "əl", "em" : "əm",
-                   "en": "ən", "nx": "ɾ̃", "q": "ʔ", "wh": "ʍ"}
+    #cmu_ipa_dict = {"ax": "ʌ", "ey": "eɪ", "aa": "ɑ", "ae": "æ", "ah": "ə", "ao": "ɔ",
+    #               "aw": "aʊ", "ay": "aɪ", "ch": "tʃ", "dh": "ð", "eh": "ɛ", "er": "ər",
+    #               "hh": "h", "ih": "ɪ", "jh": "dʒ", "ng": "ŋ",  "ow": "oʊ", "oy": "ɔɪ",
+    #               "sh": "ʃ", "th": "θ", "uh": "ʊ", "uw": "u", "zh": "ʒ", "iy": "i", "y": "j",
+    #               "dx": "ɾ", "ix": "ɨ", "ux": "ʉ", "el": "əl", "em" : "əm",
+    #               "en": "ən", "nx": "ɾ̃", "q": "ʔ", "wh": "ʍ"}
 
     #symbols = {"ax": "@", "ey": "e", "aa": "a", "ae": "{", "ah": "V", "ao": "O",
     #            "aw": "aU", "ay": "aI", "ch": "tS", "dh": "D", "eh": "E", "er": "@r",
@@ -829,12 +854,15 @@ def cmu_to_ipa(cmu_list, mark=True, stress_marking='both'):
     #            "nx": "r~", "p": "p", "q": "?", "r": "r", "s": "s", "t": "t", "v": "v",
     #            "w": "w", "wh": "W", "z": "z"}
 
-    xsampa_symbols = {"ax": "V", "ey": "e", "aa": "a", "ae": "{", "ah": "@", "ao": "O",
-                "aw": "aU", "ay": "aI", "ch": "tS", "dh": "D", "eh": "E", "er": "@r",
-                "hh": "h", "ih": "I", "jh": "dZ", "ng": "N",  "ow": "oU", "oy": "OI",
-                "sh": "S", "th": "T", "uh": "U", "uw": "u", "zh": "Z", "iy": "i", "y": "j",
-                "dx": "4", "ix": "1", "ux": "}", "el": "@l", "em" : "@m",
-                "en": "@n", "nx": "r~", "q": "?", "wh": "W"}
+    #cmu_xsampa_dict = {"ax": "V", "ey": "e", "aa": "a", "ae": "{", "ah": "@", "ao": "O",
+    #            "aw": "aU", "ay": "aI", "ch": "tS", "dh": "D", "eh": "e", "er": "@r",
+    #            "hh": "h", "ih": "I", "jh": "dZ", "ng": "N",  "ow": "oU", "oy": "OI",
+    #            "sh": "S", "th": "T", "uh": "U", "uw": "u", "zh": "Z", "iy": "i", "y": "j",
+    #            "dx": "4", "ix": "1", "ux": "}", "el": "@l", "em" : "@m",
+    #            "en": "@n", "nx": "r~", "q": "?", "wh": "W"}
+
+    cmu_ipa_dict = json.load(open(join(os.path.abspath(os.path.dirname(__file__)), 'resources', 'cmu_ipa.dict'), "r"))
+    cmu_cz_dict = json.load(open(join(os.path.abspath(os.path.dirname(__file__)), 'resources', 'cmu_cz.dict'), "r"))
 
     ipa_list = []  # the final list of ipa tokens to be returned
     for word_list in cmu_list:
@@ -861,34 +889,53 @@ def cmu_to_ipa(cmu_list, mark=True, stress_marking='both'):
             else:
                 for i in range(len((mapped_word))):
                     try:
-                        if mapped_word[i][0] in xsampa_symbols:
-                            mapped_word[i] = (xsampa_symbols[mapped_word[i][0]], mapped_word[i][1])
+                        if mapped_word[i][0] in cmu_cz_dict:
+                            mapped_word[i] = (cmu_cz_dict[mapped_word[i][0]], mapped_word[i][1])
                     except:
                         pass
 
-                ipa_word_list['phones_map'] = mapped_word
+                syllables = []
+                i = 0
+                syl_phones = ""
+                syl_stress = -1
                 for piece in word.split(" "):
                     marked = False
                     unmarked = piece
                     try:
-                        if piece[0] in ["ˈ", "ˌ"]:
+                        if piece[0] in ["|", "ˈ", "ˌ"]:
+                            if syl_phones != "":
+                                syllables.append((syl_phones, syl_stress))
+                                syl_phones = ""
+                                syl_stress = -1
                             marked = True
                             stress_mark = piece[0]
                             unmarked = piece[1:]
-                        if unmarked in symbols:
+                        if unmarked in cmu_ipa_dict:
                             if marked:
-                                ipa_form += stress_mark + symbols[unmarked]
+                                syl_phones += mapped_word[i][0]
+                                syl_stress = max(syl_stress, mapped_word[i][1])
+                                ipa_form += stress_mark + cmu_ipa_dict[unmarked]
                             else:
-                                ipa_form += symbols[unmarked]
+                                syl_phones += mapped_word[i][0]
+                                syl_stress = max(syl_stress, mapped_word[i][1])
+                                ipa_form += cmu_ipa_dict[unmarked]
                         else:
+                            syl_phones += mapped_word[i][0]
+                            syl_stress = max(syl_stress, mapped_word[i][1])
                             ipa_form += piece
                     except:
                         pass
+                    i += 1
+                if syl_phones != "":
+                    syllables.append((syl_phones, syl_stress))
+
+                ipa_word_list['phones_map'] = syllables
+                
             swap_list = [["ˈər", "əˈr"], ["ˈie", "iˈe"]]
             for sym in swap_list:
                 if not ipa_form.startswith(sym[0]):
                     ipa_form = ipa_form.replace(sym[0], sym[1])
-            ipa_word_list['transcription'].append(ipa_form)
+            ipa_word_list['transcription'].append(ipa_form.replace('|',''))
         ipa_list.append(ipa_word_list)
     return ipa_list
 
@@ -1246,7 +1293,7 @@ class GraphemeToPhonemeProblem(text_problems.Text2TextProblem):
     self._model_dir = model_dir
     self.train_path, self.dev_path, self.test_path = train_path, dev_path,\
         test_path
-    vocab_filename = os.path.join(self._model_dir, "vocab.g2p")
+    vocab_filename = join(self._model_dir, "vocab.g2p")
     if train_path:
       self.train_path, self.dev_path, self.test_path = create_data_files(
           init_train_path=train_path, init_dev_path=dev_path,
@@ -1254,7 +1301,7 @@ class GraphemeToPhonemeProblem(text_problems.Text2TextProblem):
       self.source_vocab, self.target_vocab = load_create_vocabs(
           vocab_filename, train_path=self.train_path, dev_path=self.dev_path,
           test_path=self.test_path)
-    elif not os.path.exists(os.path.join(self._model_dir, "checkpoint")):
+    elif not os.path.exists(join(self._model_dir, "checkpoint")):
       raise StandardError("Model not found in {}".format(self._model_dir))
     else:
       self.source_vocab, self.target_vocab = load_create_vocabs(
@@ -1279,8 +1326,8 @@ class GraphemeToPhonemeProblem(text_problems.Text2TextProblem):
 
   def filepattern(self, data_dir, dataset_split, shard=None):
     if not (".preprocessed" in dataset_split):
-      return os.path.join(self._model_dir, dataset_split + ".preprocessed")
-    return os.path.join(data_dir, dataset_split)
+      return join(self._model_dir, dataset_split + ".preprocessed")
+    return join(data_dir, dataset_split)
 
   @property
   def input_space_id(self):
@@ -1323,8 +1370,8 @@ class GraphemeToPhonemeProblem(text_problems.Text2TextProblem):
       eval_preprocess_path: the path where the preprocessed evaluation data
           was saved.
     """
-    train_preprocess_path = os.path.join(self._model_dir, "train.preprocessed")
-    eval_preprocess_path = os.path.join(self._model_dir, "eval.preprocessed")
+    train_preprocess_path = join(self._model_dir, "train.preprocessed")
+    eval_preprocess_path = join(self._model_dir, "eval.preprocessed")
     train_gen = self.generator(self.train_path, self.source_vocab,
                                self.target_vocab)
     eval_gen = self.generator(self.dev_path, self.source_vocab,
@@ -1852,13 +1899,13 @@ def save_params(model_dir, hparams):
     else:
       raise ValueError("HParams line:{} can not be splitted\n"
                        .format(param_split))
-  with open(os.path.join(model_dir, "model.params"), "w") as params_file:
+  with open(join(model_dir, "model.params"), "w") as params_file:
     json.dump(params_to_save, params_file)
 
 def load_params(model_dir):
   """Load customizable parameters from 'model.params' file.
   """
-  params_file_path = os.path.join(model_dir, "model.params")
+  params_file_path = join(model_dir, "model.params")
   if os.path.exists(params_file_path):
     model_params = json.load(open(params_file_path))
     hparams = ""
@@ -1954,7 +2001,7 @@ class Params(object):
     self.profile = False
     self.decode_shards = 1
 
-    saved_hparams_path = os.path.join(self.model_dir, "hparams.json")
+    saved_hparams_path = join(self.model_dir, "hparams.json")
     if os.path.exists(saved_hparams_path):
       saved_hparams_dic = json.load(open(saved_hparams_path))
       self.hparams = ""
@@ -1972,30 +2019,30 @@ class Params(object):
 #  stress.py
 #####
 
-with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'resources', 'phones.json'), "r") as phones_json:
+with open(join(os.path.abspath(os.path.dirname(__file__)), 'resources', 'phones.json'), "r") as phones_json:
     phones = json.load(phones_json)
 
 def create_phones_json():
     """Creates the phones.json file in the resources directory from the phones.txt source file from CMU"""
     phones_dict = {}
-    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)),
+    with open(join(os.path.abspath(os.path.dirname(__file__)),
                            'resources','CMU_source_files','cmudict-0.7b.phones.txt'), encoding="UTF-8") as phones_txt:
         # source link: http://svn.code.sf.net/p/cmusphinx/code/trunk/cmudict/cmudict-0.7b.phones
         for line in phones_txt.readlines():
             phones_dict[line.split("	")[0].lower()] = line.split("	")[1].replace("\n", "")
 
-    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)),
+    with open(join(os.path.abspath(os.path.dirname(__file__)),
                            'resources','phones.json'), "w") as phones_json:
         json.dump(phones_dict, phones_json)
 
 def stress_type(stress):
     """Determine the kind of stress that should be evaluated"""
     stress = stress.lower()
-    default = {"0": '', "1": "ˈ", "2": "ˌ"}
+    default = {"0": '|', "1": "ˈ", "2": "ˌ"}
     if stress == "primary":
-        return {"0": '', "1": "ˈ"}
+        return {"0": '|', "1": "ˈ"}
     elif stress == "secondary":
-        return {"0": '', "2": "ˌ"}
+        return {"0": '|', "2": "ˌ"}
     elif stress == "both" or stress == "place":
         return default
     else:
@@ -2029,17 +2076,17 @@ def place_stress(word):
 def map_phones(word):
     symbols = word.split(' ')
     mapped_word = []
-    s = '-1'
+    s = -1
     for c in symbols:
         try:
             if c[-1] in ['0', '1', '2']:
                 if phones[c[:-1]] == "vowel":
-                    s = c[-1] #Marks vowels with their stress level
+                    s = int(c[-1]) # Marks vowels with their stress level
                     c = c[:-1]
             else:
-                s = '-1' #Marks consonants
+                s = -1 # Marks consonants
         except:
-            s = '-1'
+            s = -1
         mapped_word.append((c, s))
     return mapped_word
 
@@ -2054,6 +2101,7 @@ def find_stress(word, type="all"):
         symbols = word.split(' ')
         stress_map = stress_type(type)
         new_word = []
+        syllables = []
         clusters = ["sp", "st", "sk", "fr", "fl"]
         stop_set = ["nasal", "fricative", "vowel"]  # stop searching for where stress starts if these are encountered
         # for each CMU symbol
@@ -2070,9 +2118,9 @@ def find_stress(word, type="all"):
                     hiatus = False
                     new_word = new_word[::-1]  # flip the word and backtrack through symbols
                     for i, sym in enumerate(new_word):
-                        sym = re.sub("[0-9ˈˌ]", "", sym)
-                        prev_sym = re.sub("[0-9ˈˌ]", "", new_word[i-1])
-                        prev_phone = phones[re.sub("[0-9ˈˌ]", "", new_word[i-1])]
+                        sym = re.sub("[0-9|ˈˌ]", "", sym)
+                        prev_sym = re.sub("[0-9|ˈˌ]", "", new_word[i-1])
+                        prev_phone = phones[re.sub("[0-9|ˈˌ]", "", new_word[i-1])]
                         #sym = re.sub("[0-9ˈˌ]", "", sym)
                         #prev_sym = re.sub("[0-9ˈˌ]", "", new_word[i-1])
                         #prev_phone = phones[re.sub("[0-9ˈˌ]", "", new_word[i-1])]
@@ -2084,8 +2132,8 @@ def find_stress(word, type="all"):
                             else:
                                 if phones[sym] == "vowel":
                                     hiatus = True
-                                    new_word = [stress_mark + re.sub("[0-9ˈˌ]", "", c)] + new_word
-                                    #new_word = [stress_mark + re.sub("[0-9ˈˌ]", "", c)] + new_word
+                                    new_word = [stress_mark + re.sub("[0-9|ˈˌ]", "", c)] + new_word
+                                    #new_word = [stress_mark + re.sub("[0-9|ˈˌ]", "", c)] + new_word
                                 else:
                                     new_word[i] = stress_mark + new_word[i]
                             placed = True
@@ -2115,7 +2163,7 @@ def find_stress(word, type="all"):
 #  syllables.py
 #####
 
-with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'resources','phones.json'), "r") as phones_json:
+with open(join(os.path.abspath(os.path.dirname(__file__)), 'resources','phones.json'), "r") as phones_json:
     PHONES = json.load(phones_json)
 
 # list of adjacent vowel symbols that constitute separate nuclei
@@ -2148,3 +2196,26 @@ def syllable_count(word: str):
     word = G2pModel.get_cmu([G2pModel.preprocess(word)])
     return cmu_syllable_count(word[0][0])
 
+def chartype_tokenize(word):
+    cur_type = 'a'
+    tokens = ['']
+    for char in word:
+        if char.isalpha():
+            if cur_type != 'a':
+                tokens.append(char)
+            else:
+                tokens[-1] += char
+            cur_type = 'a'
+        elif char.isdigit():
+            if cur_type != 'd':
+                tokens.append(char)
+            else:
+                tokens[-1] += char
+            cur_type = 'd'
+        else:
+            if cur_type != 'o':
+                tokens.append(char)
+            else:
+                tokens[-1] += char
+            cur_type = 'o'
+    return tokens
